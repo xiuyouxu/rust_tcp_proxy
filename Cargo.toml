@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = "2.33.0"
+serde = "*"
+serde_yaml = "*"
