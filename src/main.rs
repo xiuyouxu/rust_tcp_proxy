@@ -55,7 +55,7 @@ fn exchange(mut sock1: TcpStream, mut sock2: TcpStream) {
 // and spawn 2 threads for a client `stream`,
 // one to read from `stream` and write to `target_stream`,
 // the other to read from `target_stream` and write to `stream`
-fn proxy(stream: TcpStream, target_addr: String) -> io::Result<()> {
+fn do_proxy(stream: TcpStream, target_addr: String) -> io::Result<()> {
     let target_stream = TcpStream::connect(target_addr);
     match target_stream {
         Ok(ts) => {
@@ -83,6 +83,22 @@ fn proxy(stream: TcpStream, target_addr: String) -> io::Result<()> {
     Ok(())
 }
 
+// proxy `target_addr` by `proxy_addr`
+fn proxy(proxy_addr: &str, target_addr: &str) {
+    // listen for proxy
+    let listener = TcpListener::bind(proxy_addr).unwrap();
+
+    // handle each client in a new thread in case of blocking the listener
+    for stream in listener.incoming() {
+        let stream = stream.unwrap();
+        eprintln!("handling incoming connection: {}", stream_info(&stream));
+        let sc = stream.try_clone().unwrap();
+        let ta = target_addr.to_string();
+
+        thread::spawn(|| do_proxy(sc, ta).unwrap_or_else(|error| eprintln!("{:?}", error)));
+    }
+}
+
 fn main() {
     // parse the arguments
     let matches = App::new("proxy")
@@ -103,15 +119,5 @@ fn main() {
         std::process::exit(1);
     }
 
-    // listen for proxy
-    let listener = TcpListener::bind(proxy_addr).unwrap();
-
-    // handle each client in a new thread in case of blocking the listener
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        let sc = stream.try_clone().unwrap();
-        let ta = target_addr.clone();
-
-        thread::spawn(|| proxy(sc, ta).unwrap_or_else(|error| eprintln!("{:?}", error)));
-    }
+    proxy(&proxy_addr, &target_addr);
 }
